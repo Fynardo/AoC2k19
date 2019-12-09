@@ -1,15 +1,26 @@
-class Computer:
+class ControlUnit:
     halt_code = 99
-    def __init__(self, intcode):
-        self.intcode = intcode
+    def __init__(self, iosystem):
         self.pc = 0 # Program counter
+        self.iosystem = iosystem 
+        self._is_running = True
 
+    def attach(self, scheduler_callback):
+        self.notify = scheduler_callback
+
+    def reset(self, intcode):
+        self.restore(intcode, 0)
+
+    def restore(self, intcode, pc):
+        self.intcode = intcode
+        self.pc = pc
+        self._is_running = True
+    
     def run(self):
-        opcode = self._fetch_immediate()
-        while opcode != Computer.halt_code:
-            self._execute(opcode)      
-            opcode = self._fetch_immediate()
-        return self.intcode
+        while self._is_running:           
+            opcode = self._fetch_immediate()            
+            self._execute(opcode)
+        return 0
             
     def _store_value(self, value, addr):
         self.intcode.write(value, addr)
@@ -32,7 +43,8 @@ class Computer:
         opcode //= 100
         
         next_instr = self._instruction_builder(instr_code)
-        next_instr(opcode)        
+        next_instr(opcode)
+        self.notify(instr_code)
 
     def _fetch_params(self, opcode, params_count):
         params = []
@@ -57,12 +69,12 @@ class Computer:
 
     def _input(self, opcode):
         addr = self._fetch_immediate()
-        val = int(input('Enter ID of the system to test: '))
+        val = self.iosystem.read()       
         self._store_value(val, addr)
 
     def _output(self, opcode):
         op1 = self._fetch_params(opcode, 1)[0]
-        print('Test Output: {}'.format(op1))
+        self.iosystem.write(op1)        
 
     def _jump_if_true(self, opcode):
         op1, op2 = self._fetch_params(opcode, 2)
@@ -84,7 +96,10 @@ class Computer:
         addr = self._fetch_immediate()
         self._store_value(1 if op1 == op2 else 0, addr)
 
+    def _halt(self, opcode):
+        self._is_running = False
+
     def _instruction_builder(self, code):
-        builder = {1: self._add, 2: self._multiply, 3: self._input, 4: self._output, 5: self._jump_if_true, 6: self._jump_if_false, 7: self._less_than, 8: self._equals}
+        builder = {1: self._add, 2: self._multiply, 3: self._input, 4: self._output, 5: self._jump_if_true, 6: self._jump_if_false, 7: self._less_than, 8: self._equals, 99: self._halt}
         return builder[code]
 
