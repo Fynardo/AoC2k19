@@ -11,6 +11,11 @@ class ControlUnit:
     def reset(self, intcode):
         self.restore(intcode, 0)
 
+
+    def get_current_state(self):
+        return self.intcode, self.pc
+
+
     def restore(self, intcode, pc):
         self.intcode = intcode
         self.pc = pc
@@ -69,7 +74,7 @@ class ControlUnit:
 
     def _input(self, opcode):
         addr = self._fetch_immediate()
-        val = self.iosystem.read()       
+        val = self.iosystem.read()    
         self._store_value(val, addr)
 
     def _output(self, opcode):

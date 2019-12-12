@@ -3,9 +3,9 @@ from abc import abstractmethod
 
 class Job:
     """ Utility Class to track jobs (intcode programs) to schedule and execute"""
-    def __init__(self, uuid, code, pc):
+    def __init__(self, uuid, program, pc):
         self.uuid = uuid
-        self.code = code
+        self.program = program
         self.pc = pc
 
 
