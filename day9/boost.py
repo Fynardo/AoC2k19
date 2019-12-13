@@ -1,26 +1,21 @@
-# Advent of Code day 5. Sunny with a chance of asteroids
+# Advent of Code day 7. Amplification Circuit
 import sys
 sys.path.append("..")
-import copy
 import common.intcode as intcode
 import common.control_unit as control_unit
 import common.iosystem as iosystem
 import common.scheduler as scheduler
-  
 
 
 with open('input','r') as f:
-    program = list(eval(f.read()))
+    test = list(eval(f.read()))
 
+print('Loading BOOST program. Press 1 for debug, 2 for calculate coordinates')
 io = iosystem.StdIOSystem()
 ship_processor = control_unit.ControlUnit(io)
 sched = scheduler.SingleProgram(ship_processor)
-
-boost = scheduler.Job('TEST', intcode.ListIntcode(program), 0)
-
+boost = scheduler.Job('BOOST', intcode.ListIntcode(test+([0]*16000)), 0)
 sched.add_job(boost)
-
-print('Loading TEST program: Options\n- (1) Test air conditioner system.\n- (5) Fix thermal radiators')
 sched.run()
 
 

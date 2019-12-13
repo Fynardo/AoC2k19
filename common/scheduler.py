@@ -20,9 +20,8 @@ class Scheduler:
     def add_job(self, in_job):
         self._pending_jobs.append(in_job)
 
-    @abstractmethod
     def _get_next_job(self):
-        pass
+        return self._pending_jobs.pop(0)
 
     @abstractmethod
     def run(self):
@@ -32,7 +31,16 @@ class Scheduler:
         pass
 
 
+class SingleProgram(Scheduler):
+    def __init__(self, control_unit):
+        super().__init__(control_unit)      
 
+    def run(self):
+        job = self._get_next_job()
+        self._running_job = job
+        self._control_unit.restore(job.program, job.pc)
+        self._control_unit.run()
+        return 0
 
     
 
