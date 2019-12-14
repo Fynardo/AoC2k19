@@ -1,4 +1,4 @@
-# Advent of Code day 7. Amplification Circuit
+# Advent of Code day 9. Boost Program
 import sys
 sys.path.append("..")
 import common.intcode as intcode
