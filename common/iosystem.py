@@ -21,7 +21,7 @@ class StdIOSystem(IOSystem):
 
 class MemIOSystem(IOSystem):
     def __init__(self):
-        self._buffer = [] # Stackl
+        self._buffer = []
    
     def read(self):
         if self._buffer:
@@ -34,3 +34,20 @@ class MemIOSystem(IOSystem):
         
     def insert(self, pos, value):
         self._buffer.insert(pos, value)
+
+
+class SyncMemIOSystem(MemIOSystem):
+    def __init__(self, read_callback):
+        self._buffer = []
+        self.read_callback = read_callback
+    
+    def read(self):    
+        return self.read_callback()
+
+    def async_read(self):
+        if self._buffer:
+            return self._buffer.pop(0)
+        else:
+            return None
+
+    
