@@ -1,10 +1,10 @@
 # Advent of Code day 2. 1202 Program Alarm
 import sys
 sys.path.append("..")
-import common.intcode as intcode
-import common.control_unit as control_unit
-import common.iosystem as iosystem
-import common.scheduler as scheduler
+import common.computer.intcode as intcode
+import common.computer.control_unit as control_unit
+import common.computer.iosystem as iosystem
+import common.computer.scheduler as scheduler
 
   
 
