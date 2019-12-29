@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Day 13. Care Package
 
 import sys
@@ -6,13 +7,11 @@ import common.computer.intcode as intcode
 import common.computer.control_unit as control_unit
 import common.computer.iosystem as iosystem
 import common.computer.scheduler as scheduler
+from common.display.screen import Screen
 
 from dataclasses import dataclass
-import random
-
-
-tiles = [' ', '#', 'x', '|', 'o']
-grid = {}
+import os
+from abc import abstractmethod
 
 
 @dataclass
@@ -22,159 +21,156 @@ class DrawInstruction:
     tile : int
 
 
-class Grid:
-    def __init__(self):
-        self._grid = {}
-        self.score = -1
-    
-    def set_tile(self, instruction: DrawInstruction):       
-        #print(instruction.x, instruction.y, instruction.tile)
-        if instruction.x == -1 and instruction.y == 0:
-            self.update_score(instruction.tile)            
-        else:
-            if instruction.x in self._grid:                
-                self._grid[instruction.x][instruction.y] = tiles[instruction.tile]
-            else:
-                self._grid[instruction.x] = {instruction.y: tiles[instruction.tile]}
-
-    def count_tiles(self, tile_id):
-        to_count = [tile == tiles[tile_id] for rows, columns in self._grid.items() for column, tile in columns.items()]
-        return sum(to_count)
-
-    def update_score(self, value):
-        self.score = value
-
-    def get_score(self):
-        return self.score
-
-    def _track(self, tile):
-        for x, cols in self._grid.items():
-            for y, t in cols.items():
-                if tile == t:
-                    return x,y
-        return None
-
-    def track_ball(self):
-        return self._track('o')
-
-    def track_paddle(self):
-        return self._track('|')
-
-    def draw(self):
-        x = self._grid.keys()
-        #print(x)
-        for x, cols in self._grid.items():
-            row = ''
-            for y, tile in cols.items():
-                row += tile
-            print(row)
-        print('CURRENT SCORE: {}'.format(self.get_score()))
-
-    
-class Controller(scheduler.SingleProgram):
-    def __init__(self, control_unit, io, grid):
+class GamePlay(scheduler.SingleProgram):
+    def __init__(self, control_unit, io, screen_driver, player):
         super().__init__(control_unit)
         self.io = io
-        self.grid = grid
         self.fsm = 0
-        self.decoding_instruction = DrawInstruction(0,0,0)
+        self.decoding_instruction = DrawInstruction(0, 0, 0)
+
+        self.screen_driver = screen_driver
+        self.player = player
+        self.score = 0
 
     def _attached_unit_callback(self, instr):
         if instr == 4:
             if self.fsm == 0:
-                self.decoding_instruction.x = io.read()
-            elif self.fsm == 1:
-                self.decoding_instruction.y = io.read()
-            elif self.fsm == 2:
-                self.decoding_instruction.tile = io.read()
-                self.grid.set_tile(self.decoding_instruction)               
-            self.fsm = (self.fsm + 1) % 3
-            
-
-with open('input','r') as f:
-    game_code = list(eval(f.read()))
-
-grid = Grid()
-io = iosystem.MemIOSystem()
-cpu = control_unit.ControlUnit(io)
-controller = Controller(cpu, io, grid)
-arcade_cabinet = scheduler.Job('Arcade Game', intcode.ListIntcode(game_code+([0]*16000)), 0)
-controller.add_job(arcade_cabinet)
-controller.run()
-
-
-print('Part One. Drawing Tiles...')
-print('Done! {} Block tiles shown on screen'.format(grid.count_tiles(2)))
-
-input('Press any key to let the computer play the game!')
-
-
-# Part Two
-def move_paddle():
-    ball = grid.track_ball()
-    paddle = grid.track_paddle()
-    #print('BALL IS IN {}'.format(ball))
-    #print('PADDLE IS IN {}'.format(paddle))
-    move = 0
-    if ball[0] > paddle[0]:
-        move = 1
-    elif ball[0] == paddle[0]:
-        move = 0
-    elif ball[0] < paddle[0]:
-        move = -1 
-    return move
-
-
-def move_joystick():
-    #grid.draw() # Uncomment to see the game screen (kinda rotated btw)
-    move = move_paddle()
-    #print('Moving joystick to: {}'.format(move))
-    return move
-
-
-class Joystick(scheduler.SingleProgram):
-    def __init__(self, control_unit, io, grid):
-        super().__init__(control_unit)
-        self.io = io
-        self.grid = grid
-        self.fsm = 0        
-        self.decoding_instruction = DrawInstruction(0,0,0)        
-
-    def _attached_unit_callback(self, instr):
-        if instr == 4:
-            #print('Instruction: {}'.format(instr))  
-            #print(self.io._buffer)
-            if self.fsm == 0:                    
                 self.decoding_instruction.x = io.async_read()
             elif self.fsm == 1:
                 self.decoding_instruction.y = io.async_read()
             elif self.fsm == 2:
                 self.decoding_instruction.tile = io.async_read()
-                self.grid.set_tile(self.decoding_instruction)                      
+                if self.decoding_instruction.x == -1 and self.decoding_instruction.y == 0:
+                    self.update_score(self.decoding_instruction.tile)
+                else:
+                    self.screen_driver.set_tile(self.decoding_instruction.x, self.decoding_instruction.y, self.decoding_instruction.tile)
             self.fsm = (self.fsm + 1) % 3
 
-       
+    def update_score(self, value):
+        self.score = value
+        self.screen_driver.update_score(self.score)
+
+    def get_score(self):
+        return self.score
+
+
+class ScreenDriver:
+    def __init__(self, screen):
+        self.tiles = [' ', '#', 'x', '_', 'o']
+        self.screen = screen
+
+    def draw(self):
+        self.screen.draw()
+
+    def get_screen_size(self):
+        return self.screen.width, self.screen.height
+
+    def set_tile(self, x, y, tile):
+        self.screen.set_tile(y, x, self.tiles[tile])
+
+    def get_tile(self, x, y):
+        return self.screen.get_tile(x, y)
+
+    def update_score(self, score):
+        self.screen.set_text(self.screen.height-1, 0, 'SCORE: '+str(score))
+
+
+class Player:
+    def  __init__(self, screen_driver):
+        self.screen_driver = screen_driver
+
+    def play(self):
+        """
+        Since all this architecture is kinda strange, I have to print here which is weird but it works.
+        Also, clearing the screen and drawing in realtime it's kinda hipnotic. Not drawing anything should speed up
+        the game as well.
+        """
+        os.system('clear')
+        self.screen_driver.draw()
+        next_move = self._make_move()
+        return next_move
+
+    @abstractmethod
+    def _make_move(self):
+        pass
+
+class IAPlayer(Player):
+    def _make_move(self):
+        ball = self._track_ball()
+        paddle = self._track_paddle()
+        move = 0
+        if ball[0] > paddle[0]:
+            move = 1
+        elif ball[0] == paddle[0]:
+            move = 0
+        elif ball[0] < paddle[0]:
+            move = -1
+        return move
+
+    def _track_tile(self, tile):
+        w, h = self.screen_driver.get_screen_size()
+        for i in range(h):
+            for j in range(w):
+                if self.screen_driver.get_tile(i, j) == tile:
+                    return j,i
+
+    def _track_paddle(self):
+        return self._track_tile('_')
+
+    def _track_ball(self):
+        return self._track_tile('o')
+
+
+class HumanPlayer(Player):
+    def _make_move(self):
+        move = int(input('Move: '))
+        return move
+
+
+# Part One
+def count_blocks(screen_driver):
+    block_tile = 'x'
+    count = 0
+    w, h = screen_driver.get_screen_size()
+    for i in range(h):
+        for j in range(w):
+            if screen_driver.get_tile(i, j) == block_tile:
+                count += 1
+    return count
+
 with open('input','r') as f:
     game_code = list(eval(f.read()))
 
-game_code[0] = 2
-
-grid = Grid()
-io = iosystem.SyncMemIOSystem(move_joystick)
+screen = Screen()
+screen_driver = ScreenDriver(screen)
+player = IAPlayer(screen_driver)
+io = iosystem.SyncMemIOSystem(player.play)
 cpu = control_unit.ControlUnit(io)
-joystick = Joystick(cpu, io, grid)
-arcade_cabinet = scheduler.Job('Arcade Game', intcode.ListIntcode(game_code+([0]*16000)), 0)
-joystick.add_job(arcade_cabinet)
-joystick.run()
+cabinet = GamePlay(cpu, io, screen_driver, player)
+game = scheduler.Job('Arcade Game', intcode.ListIntcode(game_code+([0]*16000)), 0)
+cabinet.add_job(game)
+cabinet.run()
 
-print('\n\nWINNER! FINAL SCORE: {}'.format(grid.get_score()))
-
-
-
+print('Part One. Drawing Tiles...')
+print('Done! {} Block tiles shown on screen'.format(count_blocks(screen_driver)))
 
 
+# Part Two
+input('\nPart Two. Starting Game, press any key to continue')
 
+with open('input','r') as f:
+    game_code = list(eval(f.read()))
 
+game_code[0] = 2 # Insert those coins
 
+screen = Screen()
+screen_driver = ScreenDriver(screen)
+player = IAPlayer(screen_driver)
+io = iosystem.SyncMemIOSystem(player.play)
+cpu = control_unit.ControlUnit(io)
+cabinet = GamePlay(cpu, io, screen_driver, player)
+game = scheduler.Job('Arcade Game', intcode.ListIntcode(game_code+([0]*16000)), 0)
+cabinet.add_job(game)
+cabinet.run()
 
-
+screen_driver.draw()
